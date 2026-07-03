@@ -1,0 +1,78 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "## Ingestion and connector health\n---\nWhat is actually feeding this workspace, what it costs, and whether agents have gone quiet."
+      },
+      "name": "header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Usage\n| where IsBillable == true\n| summarize BillableGB = round(sum(Quantity) / 1024, 2) by DataType\n| order by BillableGB desc",
+        "size": 0,
+        "title": "Billable ingestion by table (GB)",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "barchart"
+      },
+      "name": "billable-by-table"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Usage\n| summarize IngestedGB = round(sum(Quantity) / 1024, 2) by bin(TimeGenerated, 1d), IsBillable\n| order by TimeGenerated asc",
+        "size": 0,
+        "title": "Ingestion volume over time (GB)",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "name": "ingestion-over-time"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Usage\n| summarize LastSeen = max(TimeGenerated) by DataType\n| where LastSeen < ago(24h)\n| order by LastSeen asc",
+        "size": 0,
+        "title": "Tables that stopped ingesting (last seen > 24h ago)",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "name": "stale-tables"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "Heartbeat\n| summarize LastHeartbeat = max(TimeGenerated) by Computer\n| where LastHeartbeat < ago(30m)\n| order by LastHeartbeat asc",
+        "size": 0,
+        "title": "Agents gone quiet (no heartbeat in 30m)",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "name": "quiet-agents"
+    }
+  ],
+  "styleSettings": {},
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

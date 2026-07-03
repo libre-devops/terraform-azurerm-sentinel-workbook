@@ -1,0 +1,78 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "## Incident operations overview\n---\nIncident volume, severity mix, and closure performance for this workspace, over the selected time range."
+      },
+      "name": "header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| summarize Incidents = count() by Severity, bin(CreatedTime, 1d)\n| order by CreatedTime asc",
+        "size": 0,
+        "title": "Incidents created over time, by severity",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "name": "incidents-over-time"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status != 'Closed'\n| summarize Open = count() by Severity",
+        "size": 0,
+        "title": "Open incidents by severity",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "piechart"
+      },
+      "name": "open-by-severity"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status == 'Closed'\n| extend HoursToClose = datetime_diff('minute', ClosedTime, CreatedTime) / 60.0\n| summarize MeanHoursToClose = round(avg(HoursToClose), 1) by Severity",
+        "size": 0,
+        "title": "Mean hours to close, by severity",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "barchart"
+      },
+      "name": "time-to-close"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| project CreatedTime, IncidentNumber, Title, Severity, Status, Owner = tostring(Owner.userPrincipalName)\n| order by CreatedTime desc\n| take 50",
+        "size": 0,
+        "title": "Most recent incidents",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "name": "recent-incidents"
+    }
+  ],
+  "styleSettings": {},
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

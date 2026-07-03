@@ -1,0 +1,78 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "## Detection and automation activity\n---\nWhich analytics rules are firing, what they produce, and how alerts convert into incidents."
+      },
+      "name": "header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityAlert\n| summarize Alerts = count() by AlertName\n| order by Alerts desc\n| take 20",
+        "size": 0,
+        "title": "Alerts by rule",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "barchart"
+      },
+      "name": "alerts-by-rule"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityAlert\n| summarize Alerts = count() by AlertSeverity, bin(TimeGenerated, 1d)\n| order by TimeGenerated asc",
+        "size": 0,
+        "title": "Alerts over time, by severity",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "name": "alerts-over-time"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| mv-expand AlertId = AlertIds\n| summarize IncidentsRaised = dcount(IncidentNumber), AlertsInvolved = dcount(tostring(AlertId)) by Title\n| order by IncidentsRaised desc\n| take 20",
+        "size": 0,
+        "title": "Alert to incident conversion",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "name": "alert-to-incident"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status == 'Closed' and Classification in ('BenignPositive', 'FalsePositive')\n| summarize Closed = count() by Title, Classification\n| order by Closed desc\n| take 20",
+        "size": 0,
+        "title": "Incidents closed as benign or false positive, by title",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "name": "noisy-closures"
+    }
+  ],
+  "styleSettings": {},
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

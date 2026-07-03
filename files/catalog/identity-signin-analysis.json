@@ -1,0 +1,78 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "## Identity and sign-in analysis\n---\nFailed sign-in pressure on this tenant: who is being targeted, from where, and whether legacy authentication is still in play. Requires the Entra ID (SigninLogs) connector."
+      },
+      "name": "header"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SigninLogs\n| where ResultType != 0\n| summarize Failures = count() by bin(TimeGenerated, 1h)\n| order by TimeGenerated asc",
+        "size": 0,
+        "title": "Failed sign-ins over time",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "timechart"
+      },
+      "name": "failures-over-time"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SigninLogs\n| where ResultType != 0\n| summarize Failures = count(), DistinctIPs = dcount(IPAddress) by UserPrincipalName\n| order by Failures desc\n| take 20",
+        "size": 0,
+        "title": "Most-targeted accounts",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "name": "top-targets"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SigninLogs\n| where ResultType != 0\n| summarize Failures = count(), TargetedAccounts = dcount(UserPrincipalName) by IPAddress, Location\n| order by Failures desc\n| take 20",
+        "size": 0,
+        "title": "Top failing source IPs",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "name": "top-sources"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SigninLogs\n| where ClientAppUsed !in ('Browser', 'Mobile Apps and Desktop clients', '')\n| summarize Attempts = count() by ClientAppUsed, Success = iff(ResultType == 0, 'Success', 'Failure')\n| order by Attempts desc",
+        "size": 0,
+        "title": "Legacy authentication attempts, by client app",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "barchart"
+      },
+      "name": "legacy-auth"
+    }
+  ],
+  "styleSettings": {},
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}
