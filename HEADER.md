@@ -30,12 +30,20 @@ misleadingly named `azurerm_application_insights_workbook` resource) with the `s
 and the workspace as their source. The raw resource wants a lowercase GUID for a name, lowercased
 resource ids, and raw JSON bodies; this module handles all of that and ships useful content:
 
-- **An out-of-the-box catalog.** Four lean, purpose-built workbooks selectable by name, each plain
-  KQL against tables every workspace has: `incident-overview` (volume, severity mix, closure
-  performance), `identity-signin-analysis` (who is being targeted, from where, legacy auth),
-  `ingestion-health` (billable GB by table, stale tables, quiet agents), and `detection-activity`
-  (alerts by rule, alert-to-incident conversion, noisy closures). The workspace is injected as
-  each workbook's query target.
+- **A baseline you get for free.** Calling the module deploys four purpose-built SOC workbooks by
+  default, the same shape as the policy module's baseline: `incident-overview` (KPI tiles,
+  severity and ownership mix, triage and closure performance, aging incidents),
+  `identity-signin-analysis` (failure reasons, targeted accounts, attacking IPs, legacy auth,
+  Entra risk events), `ingestion-health` (billable volume, ingestion anomaly detection, stale
+  tables, quiet agents), and `detection-activity` (rule noise, MITRE tactic coverage,
+  alert-to-incident conversion, tuning candidates). Every panel honours a shared time range
+  parameter, grids carry severity icons and heatmaps, and the workspace is injected as each
+  workbook's query target. Tune or drop individual ones through `baseline_overrides`; turn the
+  set off with `baseline_enabled = false`.
+- **See them in full flow.** `create_example_incidents = true` seeds six clearly labelled
+  incidents through the Sentinel incidents API (plain ARM via azapi, no logic app): all
+  severities, open and unassigned states, and classified noise closures, so the incident and
+  detection panels render with data on a fresh workspace. Off by default; destroy removes them.
 - **Custom workbooks without the sharp edges.** Paste the portal Advanced Editor's Gallery
   Template JSON into `data_json`: names become deterministic lowercase UUIDs derived from your
   label (stable plans, `name` override for adoption), the source id is lowercased as the API
@@ -49,7 +57,7 @@ resource ids, and raw JSON bodies; this module handles all of that and ships use
 - **Explicit onboarding dependency.** `workspace_id` accepts the sentinel module's
   `onboarding_id` (or a plain workspace id) and parses the workspace id back out of it.
 
-Requires Terraform >= 1.9 and azurerm >= 4.0. Pairs with
+Requires Terraform >= 1.9, azurerm >= 4.0, and azapi >= 2.0 (the incident seeding). Pairs with
 [`libre-devops/sentinel/azurerm`](https://registry.terraform.io/modules/libre-devops/sentinel/azurerm/latest),
 which owns the workspace onboarding.
 
@@ -73,9 +81,9 @@ module "sentinel_workbook" {
 
   workspace_id = module.sentinel.onboarding_id
 
-  catalog_workbooks = {
-    "incident-overview" = {}
-    "ingestion-health"  = {}
+  # The baseline deploys by itself; tune it rather than define it.
+  baseline_overrides = {
+    "identity-signin-analysis" = { display_name = "Identity attack surface" }
   }
 
   workbooks = {
@@ -88,11 +96,11 @@ module "sentinel_workbook" {
 
 ## Examples
 
-- [`examples/minimal`](./examples/minimal) - the incident operations workbook on a freshly
-  onboarded workspace.
-- [`examples/complete`](./examples/complete) - the whole catalog, a custom workbook from inline
-  JSON, and a gallery template in the Sentinel Templates tab, with bring-your-own-storage shown
-  gated off.
+- [`examples/minimal`](./examples/minimal) - nothing but placement: the baseline arrives free on
+  a freshly onboarded workspace.
+- [`examples/complete`](./examples/complete) - the baseline tuned through overrides, a custom
+  workbook from inline JSON, a gallery template in the Sentinel Templates tab, and the example
+  incidents seeded so everything renders in full flow.
 
 ## Developing
 

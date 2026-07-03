@@ -1,5 +1,6 @@
-# Minimal call: a freshly onboarded workspace with the incident operations workbook from the
-# catalog. Applied then destroyed in one CI run.
+# Minimal call: a freshly onboarded workspace. That is the whole point: calling the module with
+# nothing but placement gets you the curated baseline workbooks for free.
+# Applied then destroyed in one CI run.
 locals {
   location = lookup(var.regions, var.loc, "uksouth")
   rg_name  = "rg-${var.short}-${var.loc}-${terraform.workspace}-001"
@@ -49,8 +50,4 @@ module "sentinel_workbook" {
   tags              = module.tags.tags
 
   workspace_id = module.sentinel.onboarding_id
-
-  catalog_workbooks = {
-    "incident-overview" = {}
-  }
 }

@@ -1,3 +1,8 @@
+output "example_incident_ids" {
+  description = "Map of example incident label to its id (empty unless create_example_incidents is on)."
+  value       = { for k, i in azapi_resource.example_incident : k => i.id }
+}
+
 output "workbook_ids" {
   description = "Map of workbook label to its id."
   value       = { for k, w in azurerm_application_insights_workbook.this : k => w.id }

@@ -26,11 +26,12 @@ which applies the stack then always destroys it.
 ## Example configuration
 
 ```hcl
-# Every feature of the module: the full out-of-the-box catalog (with a display name override), a
-# custom workbook from inline JSON, and a gallery template landing in the Sentinel Templates tab.
-# Bring-your-own-storage workbooks are shown gated off: they need a storage container plus an
-# identity with data-plane rights, a deployment decision rather than an example default.
-# Applied then destroyed in one CI run.
+# Every feature of the module: the free baseline tuned through overrides (one renamed, one
+# recategorized), a custom workbook from inline JSON, a gallery template landing in the Sentinel
+# Templates tab, and the example incidents seeded through the Sentinel incidents API so the
+# workbooks render in full flow instead of empty panels. Bring-your-own-storage workbooks are a
+# deployment decision (storage container plus an identity with data-plane rights) rather than an
+# example default. Applied then destroyed in one CI run.
 locals {
   location = lookup(var.regions, var.loc, "uksouth")
   rg_name  = "rg-${var.short}-${var.loc}-${terraform.workspace}-002"
@@ -82,14 +83,15 @@ module "sentinel_workbook" {
 
   workspace_id = module.sentinel.onboarding_id
 
-  # The whole out-of-the-box catalog: incident operations, identity pressure, ingestion health,
-  # and detection activity, each a lean KQL workbook against tables every workspace has.
-  catalog_workbooks = {
-    "incident-overview"        = {}
+  # The baseline deploys by itself; overrides tune it without touching the curated content.
+  baseline_overrides = {
     "identity-signin-analysis" = { display_name = "Identity attack surface" }
-    "ingestion-health"         = {}
-    "detection-activity"       = {}
+    "ingestion-health"         = { tags = { Component = "finops" } }
   }
+
+  # Seed the labelled example incidents (via the Sentinel incidents API, no logic app) so the
+  # incident and detection panels render with data; destroy removes them with the stack.
+  create_example_incidents = true
 
   # A custom workbook from inline JSON (paste the portal Advanced Editor's Gallery Template JSON
   # into data_json, or file() it); the module injects this workspace as the query target.
@@ -155,6 +157,7 @@ module "sentinel_workbook" {
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.9.0, < 2.0.0 |
+| <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) | >= 2.0.0, < 3.0.0 |
 | <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | >= 4.0.0, < 5.0.0 |
 | <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0, < 4.0.0 |
 

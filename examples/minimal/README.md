@@ -24,8 +24,9 @@ Terraform workspace (`terraform.workspace`), not a variable. Run it with `just e
 ## Example configuration
 
 ```hcl
-# Minimal call: a freshly onboarded workspace with the incident operations workbook from the
-# catalog. Applied then destroyed in one CI run.
+# Minimal call: a freshly onboarded workspace. That is the whole point: calling the module with
+# nothing but placement gets you the curated baseline workbooks for free.
+# Applied then destroyed in one CI run.
 locals {
   location = lookup(var.regions, var.loc, "uksouth")
   rg_name  = "rg-${var.short}-${var.loc}-${terraform.workspace}-001"
@@ -75,10 +76,6 @@ module "sentinel_workbook" {
   tags              = module.tags.tags
 
   workspace_id = module.sentinel.onboarding_id
-
-  catalog_workbooks = {
-    "incident-overview" = {}
-  }
 }
 ```
 
@@ -87,7 +84,9 @@ module "sentinel_workbook" {
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.9.0, < 2.0.0 |
+| <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) | >= 2.0.0, < 3.0.0 |
 | <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | >= 4.0.0, < 5.0.0 |
+| <a name="requirement_random"></a> [random](#requirement\_random) | >= 3.0.0, < 4.0.0 |
 
 ## Providers
 

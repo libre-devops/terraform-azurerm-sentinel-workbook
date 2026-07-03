@@ -2,9 +2,57 @@
   "version": "Notebook/1.0",
   "items": [
     {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "b1893d42-0000-4000-8000-000000000001",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time range",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 604800000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 3600000
+                },
+                {
+                  "durationMs": 14400000
+                },
+                {
+                  "durationMs": 86400000
+                },
+                {
+                  "durationMs": 259200000
+                },
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 2592000000
+                },
+                {
+                  "durationMs": 7776000000
+                }
+              ]
+            }
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "time-range-parameter"
+    },
+    {
       "type": 1,
       "content": {
-        "json": "## Identity and sign-in analysis\n---\nFailed sign-in pressure on this tenant: who is being targeted, from where, and whether legacy authentication is still in play. Requires the Entra ID (SigninLogs) connector."
+        "json": "# Identity and sign-in analysis\n---\nFailed sign-in pressure, targeted accounts, source geography, legacy authentication, and risk events. Requires the Entra ID (SigninLogs) connector; the risk panel additionally uses AADUserRiskEvents when present."
       },
       "name": "header"
     },
@@ -12,12 +60,34 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "SigninLogs\n| where ResultType != 0\n| summarize Failures = count() by bin(TimeGenerated, 1h)\n| order by TimeGenerated asc",
+        "query": "SigninLogs\n| summarize Failures = countif(ResultType != 0), Successes = countif(ResultType == 0), TargetedAccounts = dcountif(UserPrincipalName, ResultType != 0), SourceIPs = dcountif(IPAddress, ResultType != 0)\n| project Metric = pack_array('Failed sign-ins', 'Successful sign-ins', 'Targeted accounts', 'Attacking IPs'), Value = pack_array(Failures, Successes, TargetedAccounts, SourceIPs)\n| mv-expand Metric to typeof(string), Value to typeof(long)",
+        "size": 4,
+        "title": "Identity pressure at a glance",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Metric"
+          },
+          "leftContent": {
+            "columnMatch": "Value",
+            "formatter": 12
+          },
+          "showBorder": true
+        }
+      },
+      "name": "kpis"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SigninLogs\n| where ResultType != 0\n| extend Reason = case(ResultType == 50126, 'Bad password', ResultType == 50053, 'Account locked', ResultType == 50076, 'MFA required', ResultType == 50057, 'Account disabled', 'Other')\n| summarize Failures = count() by Reason, bin(TimeGenerated, 1h)\n| order by TimeGenerated asc",
         "size": 0,
-        "title": "Failed sign-ins over time",
-        "timeContext": {
-          "durationMs": 604800000
-        },
+        "title": "Failed sign-ins over time, by error",
+        "timeContextFromParameter": "TimeRange",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "timechart"
@@ -28,15 +98,24 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "SigninLogs\n| where ResultType != 0\n| summarize Failures = count(), DistinctIPs = dcount(IPAddress) by UserPrincipalName\n| order by Failures desc\n| take 20",
+        "query": "SigninLogs\n| where ResultType != 0\n| summarize Failures = count(), DistinctIPs = dcount(IPAddress), Apps = dcount(AppDisplayName), LastAttempt = max(TimeGenerated) by UserPrincipalName\n| order by Failures desc\n| take 25",
         "size": 0,
         "title": "Most-targeted accounts",
-        "timeContext": {
-          "durationMs": 604800000
-        },
+        "timeContextFromParameter": "TimeRange",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "visualization": "table"
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Failures",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "redBright"
+              }
+            }
+          ]
+        }
       },
       "name": "top-targets"
     },
@@ -44,15 +123,24 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "SigninLogs\n| where ResultType != 0\n| summarize Failures = count(), TargetedAccounts = dcount(UserPrincipalName) by IPAddress, Location\n| order by Failures desc\n| take 20",
+        "query": "SigninLogs\n| where ResultType != 0\n| summarize Failures = count(), TargetedAccounts = dcount(UserPrincipalName), LastSeen = max(TimeGenerated) by IPAddress, Location\n| order by Failures desc\n| take 25",
         "size": 0,
-        "title": "Top failing source IPs",
-        "timeContext": {
-          "durationMs": 604800000
-        },
+        "title": "Top attacking source IPs, with locations",
+        "timeContextFromParameter": "TimeRange",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
-        "visualization": "table"
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Failures",
+              "formatter": 8,
+              "formatOptions": {
+                "palette": "redBright"
+              }
+            }
+          ]
+        }
       },
       "name": "top-sources"
     },
@@ -60,19 +148,33 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "SigninLogs\n| where ClientAppUsed !in ('Browser', 'Mobile Apps and Desktop clients', '')\n| summarize Attempts = count() by ClientAppUsed, Success = iff(ResultType == 0, 'Success', 'Failure')\n| order by Attempts desc",
+        "query": "SigninLogs\n| where ClientAppUsed !in ('Browser', 'Mobile Apps and Desktop clients', '')\n| summarize Attempts = count() by ClientAppUsed, Outcome = iff(ResultType == 0, 'Success', 'Failure')\n| order by Attempts desc",
         "size": 0,
-        "title": "Legacy authentication attempts, by client app",
-        "timeContext": {
-          "durationMs": 604800000
-        },
+        "title": "Legacy authentication, by client app (should trend to zero)",
+        "timeContextFromParameter": "TimeRange",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "barchart"
       },
       "name": "legacy-auth"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "union isfuzzy=true (AADUserRiskEvents | project TimeGenerated, UserPrincipalName, RiskEventType, RiskLevel, Source), (print TimeGenerated = datetime(null), UserPrincipalName = '', RiskEventType = '', RiskLevel = '', Source = '' | where 1 == 0)\n| where isnotempty(UserPrincipalName)\n| summarize Events = count(), LastSeen = max(TimeGenerated) by UserPrincipalName, RiskEventType, RiskLevel\n| order by Events desc\n| take 25",
+        "size": 0,
+        "title": "Entra risk detections (empty without Identity Protection data)",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table"
+      },
+      "name": "risky-users"
     }
   ],
-  "styleSettings": {},
+  "styleSettings": {
+    "paddingStyle": "wide"
+  },
   "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
 }

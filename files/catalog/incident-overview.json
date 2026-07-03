@@ -2,9 +2,57 @@
   "version": "Notebook/1.0",
   "items": [
     {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "b1893d42-0000-4000-8000-000000000001",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time range",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 604800000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 3600000
+                },
+                {
+                  "durationMs": 14400000
+                },
+                {
+                  "durationMs": 86400000
+                },
+                {
+                  "durationMs": 259200000
+                },
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 2592000000
+                },
+                {
+                  "durationMs": 7776000000
+                }
+              ]
+            }
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces"
+      },
+      "name": "time-range-parameter"
+    },
+    {
       "type": 1,
       "content": {
-        "json": "## Incident operations overview\n---\nIncident volume, severity mix, and closure performance for this workspace, over the selected time range."
+        "json": "# Incident operations overview\n---\nVolume, severity mix, ownership, and closure performance for this workspace. All panels honour the time range above."
       },
       "name": "header"
     },
@@ -12,12 +60,34 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| summarize Incidents = count() by Severity, bin(CreatedTime, 1d)\n| order by CreatedTime asc",
+        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| summarize Total = count(), Open = countif(Status != 'Closed'), NewUnassigned = countif(Status == 'New' and isempty(tostring(Owner.userPrincipalName))), ClosedNoise = countif(Status == 'Closed' and Classification in ('BenignPositive', 'FalsePositive'))\n| project Metric = pack_array('Total incidents', 'Open', 'New and unassigned', 'Closed as noise'), Value = pack_array(Total, Open, NewUnassigned, ClosedNoise)\n| mv-expand Metric to typeof(string), Value to typeof(long)",
+        "size": 4,
+        "title": "Incident posture at a glance",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Metric"
+          },
+          "leftContent": {
+            "columnMatch": "Value",
+            "formatter": 12
+          },
+          "showBorder": true
+        }
+      },
+      "name": "kpis"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| summarize Incidents = count() by Severity, bin(CreatedTime, 1h)\n| order by CreatedTime asc",
         "size": 0,
         "title": "Incidents created over time, by severity",
-        "timeContext": {
-          "durationMs": 604800000
-        },
+        "timeContextFromParameter": "TimeRange",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "timechart"
@@ -28,51 +98,169 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status != 'Closed'\n| summarize Open = count() by Severity",
+        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status != 'Closed'\n| extend Owner = coalesce(tostring(Owner.userPrincipalName), 'Unassigned')\n| summarize Open = count() by Severity, Owner\n| order by Open desc",
         "size": 0,
-        "title": "Open incidents by severity",
-        "timeContext": {
-          "durationMs": 604800000
-        },
+        "title": "Open incidents by severity and owner",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Severity",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "High",
+                    "representation": "Sev0",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Medium",
+                    "representation": "Sev1",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Low",
+                    "representation": "Sev2",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "Sev3",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "name": "open-by-severity-owner"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status == 'Closed'\n| extend HoursToClose = round(datetime_diff('minute', ClosedTime, CreatedTime) / 60.0, 1)\n| extend HoursToFirstModify = round(datetime_diff('minute', FirstModifiedTime, CreatedTime) / 60.0, 1)\n| summarize MeanHoursToFirstTouch = round(avg(HoursToFirstModify), 1), MeanHoursToClose = round(avg(HoursToClose), 1), P95HoursToClose = round(percentile(HoursToClose, 95), 1), Closed = count() by Severity",
+        "size": 0,
+        "title": "Triage and closure performance, by severity (hours)",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Severity",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "High",
+                    "representation": "Sev0",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Medium",
+                    "representation": "Sev1",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Low",
+                    "representation": "Sev2",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "Sev3",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "name": "time-to-triage-close"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status != 'Closed'\n| extend DaysOpen = datetime_diff('day', now(), CreatedTime)\n| project CreatedTime, IncidentNumber, Title, Severity, Status, DaysOpen, Owner = coalesce(tostring(Owner.userPrincipalName), 'Unassigned')\n| order by DaysOpen desc\n| take 30",
+        "size": 0,
+        "title": "Aging open incidents (oldest first)",
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.operationalinsights/workspaces",
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Severity",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "icons",
+                "thresholdsGrid": [
+                  {
+                    "operator": "==",
+                    "thresholdValue": "High",
+                    "representation": "Sev0",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Medium",
+                    "representation": "Sev1",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "==",
+                    "thresholdValue": "Low",
+                    "representation": "Sev2",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "Sev3",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "name": "aging-open"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status == 'Closed'\n| summarize Closed = count() by Classification = coalesce(Classification, 'Unclassified')",
+        "size": 0,
+        "title": "Closure classifications",
+        "timeContextFromParameter": "TimeRange",
         "queryType": 0,
         "resourceType": "microsoft.operationalinsights/workspaces",
         "visualization": "piechart"
       },
-      "name": "open-by-severity"
-    },
-    {
-      "type": 3,
-      "content": {
-        "version": "KqlItem/1.0",
-        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| where Status == 'Closed'\n| extend HoursToClose = datetime_diff('minute', ClosedTime, CreatedTime) / 60.0\n| summarize MeanHoursToClose = round(avg(HoursToClose), 1) by Severity",
-        "size": 0,
-        "title": "Mean hours to close, by severity",
-        "timeContext": {
-          "durationMs": 604800000
-        },
-        "queryType": 0,
-        "resourceType": "microsoft.operationalinsights/workspaces",
-        "visualization": "barchart"
-      },
-      "name": "time-to-close"
-    },
-    {
-      "type": 3,
-      "content": {
-        "version": "KqlItem/1.0",
-        "query": "SecurityIncident\n| summarize arg_max(TimeGenerated, *) by IncidentNumber\n| project CreatedTime, IncidentNumber, Title, Severity, Status, Owner = tostring(Owner.userPrincipalName)\n| order by CreatedTime desc\n| take 50",
-        "size": 0,
-        "title": "Most recent incidents",
-        "timeContext": {
-          "durationMs": 604800000
-        },
-        "queryType": 0,
-        "resourceType": "microsoft.operationalinsights/workspaces",
-        "visualization": "table"
-      },
-      "name": "recent-incidents"
+      "name": "closure-classifications"
     }
   ],
-  "styleSettings": {},
+  "styleSettings": {
+    "paddingStyle": "wide"
+  },
   "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
 }

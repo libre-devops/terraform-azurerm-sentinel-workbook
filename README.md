@@ -30,12 +30,20 @@ misleadingly named `azurerm_application_insights_workbook` resource) with the `s
 and the workspace as their source. The raw resource wants a lowercase GUID for a name, lowercased
 resource ids, and raw JSON bodies; this module handles all of that and ships useful content:
 
-- **An out-of-the-box catalog.** Four lean, purpose-built workbooks selectable by name, each plain
-  KQL against tables every workspace has: `incident-overview` (volume, severity mix, closure
-  performance), `identity-signin-analysis` (who is being targeted, from where, legacy auth),
-  `ingestion-health` (billable GB by table, stale tables, quiet agents), and `detection-activity`
-  (alerts by rule, alert-to-incident conversion, noisy closures). The workspace is injected as
-  each workbook's query target.
+- **A baseline you get for free.** Calling the module deploys four purpose-built SOC workbooks by
+  default, the same shape as the policy module's baseline: `incident-overview` (KPI tiles,
+  severity and ownership mix, triage and closure performance, aging incidents),
+  `identity-signin-analysis` (failure reasons, targeted accounts, attacking IPs, legacy auth,
+  Entra risk events), `ingestion-health` (billable volume, ingestion anomaly detection, stale
+  tables, quiet agents), and `detection-activity` (rule noise, MITRE tactic coverage,
+  alert-to-incident conversion, tuning candidates). Every panel honours a shared time range
+  parameter, grids carry severity icons and heatmaps, and the workspace is injected as each
+  workbook's query target. Tune or drop individual ones through `baseline_overrides`; turn the
+  set off with `baseline_enabled = false`.
+- **See them in full flow.** `create_example_incidents = true` seeds six clearly labelled
+  incidents through the Sentinel incidents API (plain ARM via azapi, no logic app): all
+  severities, open and unassigned states, and classified noise closures, so the incident and
+  detection panels render with data on a fresh workspace. Off by default; destroy removes them.
 - **Custom workbooks without the sharp edges.** Paste the portal Advanced Editor's Gallery
   Template JSON into `data_json`: names become deterministic lowercase UUIDs derived from your
   label (stable plans, `name` override for adoption), the source id is lowercased as the API
@@ -49,7 +57,7 @@ resource ids, and raw JSON bodies; this module handles all of that and ships use
 - **Explicit onboarding dependency.** `workspace_id` accepts the sentinel module's
   `onboarding_id` (or a plain workspace id) and parses the workspace id back out of it.
 
-Requires Terraform >= 1.9 and azurerm >= 4.0. Pairs with
+Requires Terraform >= 1.9, azurerm >= 4.0, and azapi >= 2.0 (the incident seeding). Pairs with
 [`libre-devops/sentinel/azurerm`](https://registry.terraform.io/modules/libre-devops/sentinel/azurerm/latest),
 which owns the workspace onboarding.
 
@@ -73,9 +81,9 @@ module "sentinel_workbook" {
 
   workspace_id = module.sentinel.onboarding_id
 
-  catalog_workbooks = {
-    "incident-overview" = {}
-    "ingestion-health"  = {}
+  # The baseline deploys by itself; tune it rather than define it.
+  baseline_overrides = {
+    "identity-signin-analysis" = { display_name = "Identity attack surface" }
   }
 
   workbooks = {
@@ -88,11 +96,11 @@ module "sentinel_workbook" {
 
 ## Examples
 
-- [`examples/minimal`](./examples/minimal) - the incident operations workbook on a freshly
-  onboarded workspace.
-- [`examples/complete`](./examples/complete) - the whole catalog, a custom workbook from inline
-  JSON, and a gallery template in the Sentinel Templates tab, with bring-your-own-storage shown
-  gated off.
+- [`examples/minimal`](./examples/minimal) - nothing but placement: the baseline arrives free on
+  a freshly onboarded workspace.
+- [`examples/complete`](./examples/complete) - the baseline tuned through overrides, a custom
+  workbook from inline JSON, a gallery template in the Sentinel Templates tab, and the example
+  incidents seeded so everything renders in full flow.
 
 ## Developing
 
@@ -130,12 +138,14 @@ The Requirements, Providers, Inputs, Outputs, and Resources below are generated 
 | Name | Version |
 |------|---------|
 | <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.9.0, < 2.0.0 |
+| <a name="requirement_azapi"></a> [azapi](#requirement\_azapi) | >= 2.0.0, < 3.0.0 |
 | <a name="requirement_azurerm"></a> [azurerm](#requirement\_azurerm) | >= 4.0.0, < 5.0.0 |
 
 ## Providers
 
 | Name | Version |
 |------|---------|
+| <a name="provider_azapi"></a> [azapi](#provider\_azapi) | >= 2.0.0, < 3.0.0 |
 | <a name="provider_azurerm"></a> [azurerm](#provider\_azurerm) | >= 4.0.0, < 5.0.0 |
 
 ## Modules
@@ -146,6 +156,7 @@ No modules.
 
 | Name | Type |
 |------|------|
+| [azapi_resource.example_incident](https://registry.terraform.io/providers/Azure/azapi/latest/docs/resources/resource) | resource |
 | [azurerm_application_insights_workbook.this](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/application_insights_workbook) | resource |
 | [azurerm_application_insights_workbook_template.this](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/application_insights_workbook_template) | resource |
 
@@ -153,7 +164,9 @@ No modules.
 
 | Name | Description | Type | Default | Required |
 |------|-------------|------|---------|:--------:|
-| <a name="input_catalog_workbooks"></a> [catalog\_workbooks](#input\_catalog\_workbooks) | Out-of-the-box workbooks shipped with the module, keyed by catalog name, deployed as saved<br/>workbooks against the workspace. Set an entry to {} for the defaults or override display\_name.<br/>Available: incident-overview (volume, severity mix, closure performance),<br/>identity-signin-analysis (failed sign-in pressure, needs the Entra ID connector),<br/>ingestion-health (billable volume by table, stale tables, quiet agents), and detection-activity<br/>(alerts by rule, alert-to-incident conversion, noisy closures). | <pre>map(object({<br/>    display_name = optional(string)<br/>  }))</pre> | `{}` | no |
+| <a name="input_baseline_enabled"></a> [baseline\_enabled](#input\_baseline\_enabled) | Deploy the out-of-the-box baseline workbooks. On by default: calling the module gets you the curated SOC set for free (the same shape as the policy module's baseline); disable individual ones or tune them through baseline\_overrides. | `bool` | `true` | no |
+| <a name="input_baseline_overrides"></a> [baseline\_overrides](#input\_baseline\_overrides) | Per-workbook tuning of the baseline, keyed by baseline name. Set enabled = false to drop one,<br/>or override its display\_name, category, or tags; everything else keeps the curated defaults.<br/>The baseline: incident-overview (volume, severity and ownership mix, triage and closure<br/>performance, aging incidents), identity-signin-analysis (failed sign-in pressure by reason,<br/>targeted accounts, attacking IPs, legacy auth, Entra risk events), ingestion-health (billable<br/>volume, ingestion anomalies, stale tables, quiet agents), and detection-activity (rule noise,<br/>MITRE tactic coverage, alert-to-incident conversion, tuning candidates). | <pre>map(object({<br/>    enabled      = optional(bool, true)<br/>    display_name = optional(string)<br/>    category     = optional(string)<br/>    tags         = optional(map(string))<br/>  }))</pre> | `{}` | no |
+| <a name="input_create_example_incidents"></a> [create\_example\_incidents](#input\_create\_example\_incidents) | Seed a small set of clearly labelled example incidents (via the Sentinel incidents API, the same<br/>surface as the portal's manual incident creation) so the baseline workbooks render in full flow<br/>instead of empty panels. Every title is prefixed "[Example]", the mix covers severities, statuses,<br/>and a noise closure, and destroying the module removes them. Requires the workspace to be<br/>onboarded to Sentinel. For demo and development workspaces; leave off in production. | `bool` | `false` | no |
 | <a name="input_location"></a> [location](#input\_location) | The Azure region the workbooks live in. | `string` | n/a | yes |
 | <a name="input_resource_group_id"></a> [resource\_group\_id](#input\_resource\_group\_id) | The id of the resource group the workbooks land in (workbooks are Microsoft.Insights resources, resource group scoped). Parsed for the resource group name. | `string` | n/a | yes |
 | <a name="input_tags"></a> [tags](#input\_tags) | Tags applied to every workbook and template (merged with any per-item tags). | `map(string)` | `{}` | no |
@@ -165,6 +178,7 @@ No modules.
 
 | Name | Description |
 |------|-------------|
+| <a name="output_example_incident_ids"></a> [example\_incident\_ids](#output\_example\_incident\_ids) | Map of example incident label to its id (empty unless create\_example\_incidents is on). |
 | <a name="output_workbook_ids"></a> [workbook\_ids](#output\_workbook\_ids) | Map of workbook label to its id. |
 | <a name="output_workbook_ids_zipmap"></a> [workbook\_ids\_zipmap](#output\_workbook\_ids\_zipmap) | Map of workbook label to { name, id }, for easy composition with other modules (metadata parent\_id, for example). |
 | <a name="output_workbook_names"></a> [workbook\_names](#output\_workbook\_names) | Map of workbook label to the workbook's UUID name (deterministic unless overridden). |

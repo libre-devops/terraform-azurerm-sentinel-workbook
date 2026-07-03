@@ -1,22 +1,47 @@
-variable "catalog_workbooks" {
+variable "baseline_enabled" {
+  description = "Deploy the out-of-the-box baseline workbooks. On by default: calling the module gets you the curated SOC set for free (the same shape as the policy module's baseline); disable individual ones or tune them through baseline_overrides."
+  type        = bool
+  default     = true
+  nullable    = false
+}
+
+variable "baseline_overrides" {
   description = <<DESC
-Out-of-the-box workbooks shipped with the module, keyed by catalog name, deployed as saved
-workbooks against the workspace. Set an entry to {} for the defaults or override display_name.
-Available: incident-overview (volume, severity mix, closure performance),
-identity-signin-analysis (failed sign-in pressure, needs the Entra ID connector),
-ingestion-health (billable volume by table, stale tables, quiet agents), and detection-activity
-(alerts by rule, alert-to-incident conversion, noisy closures).
+Per-workbook tuning of the baseline, keyed by baseline name. Set enabled = false to drop one,
+or override its display_name, category, or tags; everything else keeps the curated defaults.
+The baseline: incident-overview (volume, severity and ownership mix, triage and closure
+performance, aging incidents), identity-signin-analysis (failed sign-in pressure by reason,
+targeted accounts, attacking IPs, legacy auth, Entra risk events), ingestion-health (billable
+volume, ingestion anomalies, stale tables, quiet agents), and detection-activity (rule noise,
+MITRE tactic coverage, alert-to-incident conversion, tuning candidates).
 DESC
 
   type = map(object({
+    enabled      = optional(bool, true)
     display_name = optional(string)
+    category     = optional(string)
+    tags         = optional(map(string))
   }))
   default = {}
 
   validation {
-    condition     = alltrue([for name in keys(var.catalog_workbooks) : contains(["incident-overview", "identity-signin-analysis", "ingestion-health", "detection-activity"], name)])
-    error_message = "catalog_workbooks keys must be catalog names: incident-overview, identity-signin-analysis, ingestion-health, detection-activity."
+    condition     = alltrue([for name in keys(var.baseline_overrides) : contains(["incident-overview", "identity-signin-analysis", "ingestion-health", "detection-activity"], name)])
+    error_message = "baseline_overrides keys must be baseline names: incident-overview, identity-signin-analysis, ingestion-health, detection-activity."
   }
+}
+
+variable "create_example_incidents" {
+  description = <<DESC
+Seed a small set of clearly labelled example incidents (via the Sentinel incidents API, the same
+surface as the portal's manual incident creation) so the baseline workbooks render in full flow
+instead of empty panels. Every title is prefixed "[Example]", the mix covers severities, statuses,
+and a noise closure, and destroying the module removes them. Requires the workspace to be
+onboarded to Sentinel. For demo and development workspaces; leave off in production.
+DESC
+
+  type     = bool
+  default  = false
+  nullable = false
 }
 
 variable "location" {
